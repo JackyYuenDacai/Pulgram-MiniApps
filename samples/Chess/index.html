@@ -95,77 +95,10 @@
                 this.isWhite = true;
                 this.gameStarted = false;
                 this.gameState = this.createInitialGameState();
-                this.gameStatus = 'active'; // active, check, checkmate, stalemate
 
                 this.initializeBoard();
                 this.setupMessageListener();
                 this.setupStartButton();
-            }
-
-            initializeBoard() {
-                // Clear the board
-                this.board.innerHTML = '';
-                this.selectedPiece = null;
-                this.validMoves = [];
-
-                // Create squares and pieces
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        const square = document.createElement('div');
-                        square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
-                        
-                        // Add piece if there is one
-                        const piece = this.gameState.board[row][col];
-                        if (piece) {
-                            const pieceDiv = document.createElement('div');
-                            pieceDiv.className = 'piece';
-                            const [color, type] = piece.split('');
-                            const colorName = color === 'w' ? 'white' : 'black';
-                            const pieceName = {
-                                'P': 'pawn',
-                                'R': 'rook',
-                                'N': 'knight',
-                                'B': 'bishop',
-                                'Q': 'queen',
-                                'K': 'king'
-                            }[type];
-                            pieceDiv.style.backgroundImage = `url('resources/pieces-basic-png/${colorName}-${pieceName}.png')`;
-                            square.appendChild(pieceDiv);
-                        }                        // Add click handler
-                        square.addEventListener('click', () => {
-                            console.log(`Square clicked: row=${row}, col=${col}, gameStarted=${this.gameStarted}, isMyTurn=${(this.gameState.currentTurn === 'w' && this.isWhite) || (this.gameState.currentTurn === 'b' && !this.isWhite)}`);
-                            const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
-                                           (this.gameState.currentTurn === 'b' && !this.isWhite);
-                            
-                            if (!this.gameStarted || !isMyTurn || this.gameStatus === 'checkmate' || this.gameStatus === 'stalemate') {
-                                console.log('Click ignored: gameStarted=', this.gameStarted, 'isMyTurn=', isMyTurn, 'gameStatus=', this.gameStatus);
-                                return;
-                            }
-
-                            // Get the current piece at this position
-                            const currentPiece = this.gameState.board[row][col];
-
-                            if (currentPiece && currentPiece[0] === this.gameState.currentTurn) {
-                                // Select piece
-                                this.board.querySelectorAll('.square').forEach(s => s.classList.remove('selected', 'valid-move'));
-                                square.classList.add('selected');
-                                this.selectedPiece = { row, col };
-                                this.validMoves = this.calculateValidMoves(row, col);
-                                
-                                // Highlight valid moves
-                                this.validMoves.forEach(move => {
-                                    const targetSquare = this.board.children[move.row * 8 + move.col];
-                                    targetSquare.classList.add('valid-move');
-                                });
-                            } else if (this.selectedPiece && this.isValidMove(row, col)) {
-                                // Make move
-                                this.makeMove(row, col);
-                            }
-                        });
-
-                        this.board.appendChild(square);
-                    }
-                }
             }
 
             setupStartButton() {
@@ -193,92 +126,101 @@
                 };
             }
 
-            isKingInCheck(board, color) {
-                // Find king's position
-                let kingRow = -1, kingCol = -1;
+            initializeBoard() {
+                this.board.innerHTML = '';
                 for (let row = 0; row < 8; row++) {
                     for (let col = 0; col < 8; col++) {
-                        const piece = board[row][col];
-                        if (piece === `${color}K`) {
-                            kingRow = row;
-                            kingCol = col;
-                            break;
-                        }
-                    }
-                    if (kingRow !== -1) break;
-                }
-
-                // Check if any opponent piece can capture the king
-                const opponentColor = color === 'w' ? 'b' : 'w';
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        const piece = board[row][col];
-                        if (piece && piece[0] === opponentColor) {
-                            const moves = this.calculateValidMoves(row, col, board);
-                            if (moves.some(move => move.row === kingRow && move.col === kingCol)) {
-                                return true;
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-
-            isCheckmate(color) {
-                // If not in check, it's not checkmate
-                if (!this.isKingInCheck(this.gameState.board, color)) {
-                    return false;
-                }
-
-                // Try every possible move for all pieces
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
+                        const square = document.createElement('div');
+                        square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                        square.dataset.row = row;
+                        square.dataset.col = col;
+                        
                         const piece = this.gameState.board[row][col];
-                        if (piece && piece[0] === color) {
-                            const moves = this.calculateValidMoves(row, col);
-                            // Try each move to see if it gets out of check
-                            for (const move of moves) {
-                                const tempBoard = this.cloneBoard(this.gameState.board);
-                                tempBoard[move.row][move.col] = piece;
-                                tempBoard[row][col] = '';
-                                if (!this.isKingInCheck(tempBoard, color)) {
-                                    return false;
-                                }
-                            }
+                        if (piece) {
+                            const pieceDiv = document.createElement('div');
+                            pieceDiv.className = 'piece';                            
+                            pieceDiv.style.backgroundImage = `url(resources/pieces-basic-png/${this.getPieceImage(piece)})`;
+                            square.appendChild(pieceDiv);
                         }
+
+                        square.addEventListener('click', (e) => this.handleSquareClick(row, col));
+                        this.board.appendChild(square);
                     }
                 }
-                return true;
             }
 
-            isStalemate(color) {
-                // If in check, it's not stalemate
-                if (this.isKingInCheck(this.gameState.board, color)) {
-                    return false;
+            getPieceImage(piece) {
+                const color = piece[0] === 'w' ? 'white' : 'black';
+                const pieceType = {
+                    'P': 'pawn',
+                    'R': 'rook',
+                    'N': 'knight',
+                    'B': 'bishop',
+                    'Q': 'queen',
+                    'K': 'king'
+                }[piece[1]];
+                return `${color}-${pieceType}.png`;
+            }
+
+            handleSquareClick(row, col) {
+                const piece = this.gameState.board[row][col];
+                const isCurrentPlayerTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
+                                         (this.gameState.currentTurn === 'b' && !this.isWhite);
+
+                if (!isCurrentPlayerTurn) {
+                    return;
                 }
 
-                // Check if any legal moves are available
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        const piece = this.gameState.board[row][col];
-                        if (piece && piece[0] === color) {
-                            const moves = this.calculateValidMoves(row, col);
-                            if (moves.length > 0) {
-                                return false;
-                            }
-                        }
+                if (this.selectedPiece) {
+                    if (this.isValidMove(row, col)) {
+                        this.makeMove(row, col);
                     }
+                    this.clearSelection();
+                } else if (piece && this.isPieceOwnedByCurrentPlayer(piece)) {
+                    this.selectPiece(row, col);
                 }
-                return true;
             }
 
-            cloneBoard(board) {
-                return board.map(row => [...row]);
+            isPieceOwnedByCurrentPlayer(piece) {
+                return (piece[0] === 'w' && this.isWhite) ||
+                       (piece[0] === 'b' && !this.isWhite);
             }
 
-            calculateValidMoves(row, col, board = this.gameState.board) {
+            selectPiece(row, col) {
+                this.selectedPiece = { row, col };
+                this.validMoves = this.calculateValidMoves(row, col);
+                this.updateBoardUI();
+            }
+
+            clearSelection() {
+                this.selectedPiece = null;
+                this.validMoves = [];
+                this.updateBoardUI();
+            }
+
+            updateBoardUI() {
+                const squares = this.board.getElementsByClassName('square');
+                Array.from(squares).forEach(square => {
+                    const row = parseInt(square.dataset.row);
+                    const col = parseInt(square.dataset.col);
+                    
+                    square.classList.remove('selected', 'valid-move');
+                    
+                    if (this.selectedPiece && 
+                        this.selectedPiece.row === row && 
+                        this.selectedPiece.col === col) {
+                        square.classList.add('selected');
+                    }
+                    
+                    if (this.validMoves.some(move => move.row === row && move.col === col)) {
+                        square.classList.add('valid-move');
+                    }
+                });
+            }
+
+            calculateValidMoves(row, col) {
+                const piece = this.gameState.board[row][col];
                 const moves = [];
-                const piece = board[row][col];
                 
                 if (!piece) return moves;
 
@@ -288,19 +230,23 @@
                 switch (pieceType) {
                     case 'P': // Pawn
                         const direction = isWhitePiece ? -1 : 1;
-                        const startRow = isWhitePiece ? 6 : 1;                        // Move forward one square
+                        const startRow = isWhitePiece ? 6 : 1;
+
+                        // Move forward one square
                         if (this.isValidPosition(row + direction, col) && 
-                            !board[row + direction][col]) {
+                            !this.gameState.board[row + direction][col]) {
                             moves.push({ row: row + direction, col: col });
 
                             // Move forward two squares from starting position
-                            if (row === startRow && !board[row + 2 * direction][col]) {
+                            if (row === startRow && !this.gameState.board[row + 2 * direction][col]) {
                                 moves.push({ row: row + 2 * direction, col: col });
                             }
-                        }                        // Capture diagonally
+                        }
+
+                        // Capture diagonally
                         for (let colOffset of [-1, 1]) {
                             if (this.isValidPosition(row + direction, col + colOffset)) {
-                                const targetPiece = board[row + direction][col + colOffset];
+                                const targetPiece = this.gameState.board[row + direction][col + colOffset];
                                 if (targetPiece && targetPiece[0] !== piece[0]) {
                                     moves.push({ row: row + direction, col: col + colOffset });
                                 }
@@ -309,12 +255,13 @@
                         break;
 
                     case 'R': // Rook
-                        // Check horizontal and vertical moves                        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+                        // Check horizontal and vertical moves
+                        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
                         for (let [dx, dy] of directions) {
                             let newRow = row + dx;
                             let newCol = col + dy;
                             while (this.isValidPosition(newRow, newCol)) {
-                                const targetPiece = board[newRow][newCol];
+                                const targetPiece = this.gameState.board[newRow][newCol];
                                 if (!targetPiece) {
                                     moves.push({ row: newRow, col: newCol });
                                 } else {
@@ -410,13 +357,7 @@
                         break;
                 }
 
-                // Filter out moves that would put or leave own king in check
-                return moves.filter(move => {
-                    const tempBoard = this.cloneBoard(board);
-                    tempBoard[move.row][move.col] = piece;
-                    tempBoard[row][col] = '';
-                    return !this.isKingInCheck(tempBoard, piece[0]);
-                });
+                return moves;
             }
 
             isValidPosition(row, col) {
@@ -433,23 +374,7 @@
                 // Update game state
                 this.gameState.board[toRow][toCol] = piece;
                 this.gameState.board[fromRow][fromCol] = '';
-                
-                // Switch turns
-                this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
-
-                // Check game status
-                const opponentColor = this.gameState.currentTurn;
-                if (this.isCheckmate(opponentColor)) {
-                    this.gameStatus = 'checkmate';
-                } else if (this.isKingInCheck(this.gameState.board, opponentColor)) {
-                    this.gameStatus = 'check';
-                } else if (this.isStalemate(opponentColor)) {
-                    this.gameStatus = 'stalemate';
-                } else {
-                    this.gameStatus = 'active';
-                }
-
-                // Send move to opponent
+                this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';                // Send move to opponent
                 if (this.gameStarted) {
                     const moveMessage = {
                         type: 'chess_move',
@@ -457,117 +382,45 @@
                             from: { row: fromRow, col: fromCol },
                             to: { row: toRow, col: toCol },
                             piece: piece
-                        },
-                        gameStatus: this.gameStatus
+                        }
                     };
 
                     const message = pulgram.createMessage(
                         JSON.stringify(moveMessage),
                         pulgram.MessageType.TEXT,
                         pulgram.ReceiverType.USER
-                    );
+                    );                    // Set empty strings for receiver and session IDs since they're handled by SDK
                     message.receiverId = "";
                     message.sessionId = "";
+                    console.log('Sending:', JSON.stringify(message));
                     pulgram.sendMessage(message);
                 }
 
                 this.initializeBoard();
                 this.updateStatus();
-            }
-
-            handleOpponentMove(moveData) {
-                const { from, to, piece, gameStatus } = moveData;
-                this.gameState.board[from.row][from.col] = '';
-                this.gameState.board[to.row][to.col] = piece;
-                this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
-                this.gameStatus = gameStatus || 'active';
-                this.initializeBoard();
-                this.updateStatus();
-            }
-
-            updateStatus() {
-                const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
-                                (this.gameState.currentTurn === 'b' && !this.isWhite);
-                
-                let statusText = '';
-                if (this.gameStatus === 'checkmate') {
-                    statusText = `Game Over - ${this.gameState.currentTurn === 'w' ? 'Black' : 'White'} wins by checkmate!`;
-                    this.showRematchButton();
-                } else if (this.gameStatus === 'stalemate') {
-                    statusText = 'Game Over - Draw by stalemate!';
-                    this.showRematchButton();
-                } else if (this.gameStatus === 'check') {
-                    statusText = `${this.gameState.currentTurn === 'w' ? 'White' : 'Black'} is in check! ${isMyTurn ? 'Your turn' : "Opponent's turn"}`;
-                } else {
-                    statusText = isMyTurn ? 'Your turn' : "Opponent's turn";
-                }
-                
-                this.status.textContent = statusText;
-            }
-
-            showRematchButton() {
-                const controls = document.getElementById('controls');
-                if (!document.getElementById('rematchButton')) {
-                    const rematchButton = document.createElement('button');
-                    rematchButton.id = 'rematchButton';
-                    rematchButton.textContent = 'Rematch';
-                    rematchButton.addEventListener('click', () => this.requestRematch());
-                    controls.appendChild(rematchButton);
-                }
-            }
-
-            requestRematch() {
-                const rematchMessage = pulgram.createMessage(
-                    JSON.stringify({ type: 'chess_rematch_request' }),
-                    pulgram.MessageType.TEXT,
-                    pulgram.ReceiverType.USER
-                );
-                pulgram.sendMessage(rematchMessage);
-            }
-
-            resetGame() {
-                this.gameState = this.createInitialGameState();
-                this.gameStatus = 'active';
-                this.selectedPiece = null;
-                this.validMoves = [];
-                this.initializeBoard();
-                this.updateStatus();
-                
-                const rematchButton = document.getElementById('rematchButton');
-                if (rematchButton) {
-                    rematchButton.remove();
-                }
-            }
-
+            }            
             setupMessageListener() {
                 pulgram.setOnMessageReceivedListener(async (message) => {
+                    console.log('Received message:', JSON.stringify(message));
+                    console.log('Message type:', JSON.parse(message.content).type);
+                    console.log('Message content:', message.content);
                     if (message.type) {
                         try {
                             const data = JSON.parse(message.content);
                             if (data.type === 'chess_invitation') {
                                 if (!this.gameStarted) {
+                                    // Accept the invitation and start as black
                                     this.acceptInvitation();
                                 }
                             } else if (data.type === 'chess_accept') {
                                 if (!this.gameStarted) {
+                                    // Start as white since we sent the invitation
                                     this.startGame(true);
-                                }                            } else if (data.type === 'chess_move') {
+                                }
+                            } else if (data.type === 'chess_move') {
                                 if (this.gameStarted) {
                                     this.handleOpponentMove(data.move);
                                 }
-                            } else if (data.type === 'chess_rematch_request') {
-                                if (confirm('Opponent wants a rematch. Accept?')) {
-                                    const response = pulgram.createMessage(
-                                        JSON.stringify({ type: 'chess_rematch_accept' }),
-                                        pulgram.MessageType.TEXT
-                                    );
-                                    pulgram.sendMessage(response);
-                                    this.resetGame();
-                                    this.startGame(!this.isWhite); // Switch colors for rematch
-                                }
-                            } else if (data.type === 'chess_rematch_accept') {
-                                this.resetGame();
-                                this.startGame(!this.isWhite); // Switch colors for rematch
                             }
                         } catch (e) {
                             // Not a game message, ignore
@@ -584,7 +437,6 @@
                 document.getElementById('startButton').style.display = 'none';
                 this.opponentInfo.textContent = 'Game in progress';
                 this.updateStatus();
-                this.initializeBoard();
             }
 
             acceptInvitation() {
@@ -608,10 +460,35 @@
                     console.log('Sending:', JSON.stringify(invitation));
                     pulgram.sendMessage(invitation);
                     this.opponentInfo.textContent = 'Waiting for opponent to accept...';
-                }            }
-        }
+                }
+            }
 
-        // Initialize the game when the SDK is ready
+            handleOpponentMove(moveData) {
+                const { from, to, piece } = moveData;
+                this.gameState.board[from.row][from.col] = '';
+                this.gameState.board[to.row][to.col] = piece;
+                this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
+                this.initializeBoard();
+                this.updateStatus();
+            }
+
+            updateStatus() {
+                const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
+                                (this.gameState.currentTurn === 'b' && !this.isWhite);
+                this.status.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
+            }
+
+            async setOpponent(opponentId) {
+                this.opponentId = opponentId;
+                const opponent = await pulgram.getFriendDetails(opponentId);
+                this.opponentInfo.textContent = `Playing against: ${opponent.nickname || opponent.username}`;
+                
+                // Determine player color based on user IDs
+                const myId = pulgram.getUserId();
+                this.isWhite = myId < opponentId;
+                this.updateStatus();
+            }
+        }        // Initialize the game when the SDK is ready
         document.addEventListener('pulgramready', () => {
             window.game = new ChessGame();
         });
