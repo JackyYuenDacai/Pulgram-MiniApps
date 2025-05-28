@@ -133,10 +133,12 @@
                             square.appendChild(pieceDiv);
                         }                        // Add click handler
                         square.addEventListener('click', () => {
+                            console.log(`Square clicked: row=${row}, col=${col}, gameStarted=${this.gameStarted}, isMyTurn=${(this.gameState.currentTurn === 'w' && this.isWhite) || (this.gameState.currentTurn === 'b' && !this.isWhite)}`);
                             const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
                                            (this.gameState.currentTurn === 'b' && !this.isWhite);
                             
                             if (!this.gameStarted || !isMyTurn || this.gameStatus === 'checkmate' || this.gameStatus === 'stalemate') {
+                                console.log('Click ignored: gameStarted=', this.gameStarted, 'isMyTurn=', isMyTurn, 'gameStatus=', this.gameStatus);
                                 return;
                             }
 
@@ -286,23 +288,19 @@
                 switch (pieceType) {
                     case 'P': // Pawn
                         const direction = isWhitePiece ? -1 : 1;
-                        const startRow = isWhitePiece ? 6 : 1;
-
-                        // Move forward one square
+                        const startRow = isWhitePiece ? 6 : 1;                        // Move forward one square
                         if (this.isValidPosition(row + direction, col) && 
-                            !this.gameState.board[row + direction][col]) {
+                            !board[row + direction][col]) {
                             moves.push({ row: row + direction, col: col });
 
                             // Move forward two squares from starting position
-                            if (row === startRow && !this.gameState.board[row + 2 * direction][col]) {
+                            if (row === startRow && !board[row + 2 * direction][col]) {
                                 moves.push({ row: row + 2 * direction, col: col });
                             }
-                        }
-
-                        // Capture diagonally
+                        }                        // Capture diagonally
                         for (let colOffset of [-1, 1]) {
                             if (this.isValidPosition(row + direction, col + colOffset)) {
-                                const targetPiece = this.gameState.board[row + direction][col + colOffset];
+                                const targetPiece = board[row + direction][col + colOffset];
                                 if (targetPiece && targetPiece[0] !== piece[0]) {
                                     moves.push({ row: row + direction, col: col + colOffset });
                                 }
@@ -311,13 +309,12 @@
                         break;
 
                     case 'R': // Rook
-                        // Check horizontal and vertical moves
-                        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+                        // Check horizontal and vertical moves                        const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
                         for (let [dx, dy] of directions) {
                             let newRow = row + dx;
                             let newCol = col + dy;
                             while (this.isValidPosition(newRow, newCol)) {
-                                const targetPiece = this.gameState.board[newRow][newCol];
+                                const targetPiece = board[newRow][newCol];
                                 if (!targetPiece) {
                                     moves.push({ row: newRow, col: newCol });
                                 } else {
@@ -544,7 +541,7 @@
 
             setupMessageListener() {
                 pulgram.setOnMessageReceivedListener(async (message) => {
-                    if (message.type === pulgram.MessageType.TEXT) {
+                    if (message.type) {
                         try {
                             const data = JSON.parse(message.content);
                             if (data.type === 'chess_invitation') {
@@ -554,8 +551,7 @@
                             } else if (data.type === 'chess_accept') {
                                 if (!this.gameStarted) {
                                     this.startGame(true);
-                                }
-                            } else if (data.type === 'chess_move') {
+                                }                            } else if (data.type === 'chess_move') {
                                 if (this.gameStarted) {
                                     this.handleOpponentMove(data.move);
                                 }
@@ -588,6 +584,7 @@
                 document.getElementById('startButton').style.display = 'none';
                 this.opponentInfo.textContent = 'Game in progress';
                 this.updateStatus();
+                this.initializeBoard();
             }
 
             acceptInvitation() {
