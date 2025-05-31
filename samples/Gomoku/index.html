@@ -596,7 +596,8 @@
 
             startGame(isBlack) {
                 this.gameStarted = true;
-                this.isBlack = isBlack;                this.startButton.style.display = 'none';
+                this.isBlack = isBlack;                
+                this.startButton.style.display = 'none';
                 this.playerInfo.textContent = `You are playing as ${isBlack ? 'Black' : 'White'}`;
                 this.updateStatus();
                 this.requestGameStateSync();
@@ -686,18 +687,41 @@
                     pulgram.ReceiverType.USER
                 );
                 pulgram.sendMessage(message);
-            }
-
-            setupAudioControls() {
+            }            setupAudioControls() {
                 const musicToggle = document.getElementById('musicToggle');
                 const soundToggle = document.getElementById('soundToggle');
+                
+                let musicPlayPromise = null;
+                
+                musicToggle.addEventListener('click', async () => {
+                    // If there's a pending play operation, wait for it to complete
+                    if (musicPlayPromise) {
+                        try {
+                            await musicPlayPromise;
+                        } catch (e) {
+                            // Ignore any errors from previous play attempts
+                        }
+                        musicPlayPromise = null;
+                    }
 
-                musicToggle.addEventListener('click', () => {
                     this.isMusicEnabled = !this.isMusicEnabled;
-                    if (this.isMusicEnabled) {
-                        this.bgMusic.play();
-                        musicToggle.classList.add('active');
-                        musicToggle.innerHTML = '<i>🎵</i> Music: On';
+                      if (this.isMusicEnabled) {
+                        try {
+                            // Don't reset to beginning, just resume from current position
+                            musicPlayPromise = this.bgMusic.play();
+                            await musicPlayPromise;
+                            musicToggle.classList.add('active');
+                            musicToggle.innerHTML = '<i>🎵</i> Music: On';
+                        } catch (err) {
+                            console.error('Failed to play music:', err.message);
+                            this.isMusicEnabled = false;
+                            musicToggle.innerHTML = '<i>🎵</i> Music: Failed';
+                            setTimeout(() => {
+                                musicToggle.innerHTML = '<i>🎵</i> Music: Off';
+                            }, 2000);
+                        } finally {
+                            musicPlayPromise = null;
+                        }
                     } else {
                         this.bgMusic.pause();
                         musicToggle.classList.remove('active');
