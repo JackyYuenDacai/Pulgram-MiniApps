@@ -121,10 +121,15 @@
                 this.isWhite = true;
                 this.gameStarted = false;
                 this.gameState = this.createInitialGameState();
+                this.gameId = null; // Unique identifier for this game session
+                this.lastSyncTime = null; // Timestamp of last sync
 
                 this.initializeBoard();
                 this.setupMessageListener();
                 this.setupStartButton();
+                
+                // Add event listener for page visibility changes
+                document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
             }
 
             setupStartButton() {
@@ -419,20 +424,24 @@
                     message.receiverId = "";
                     message.sessionId = "";
                     console.log('Sending:', JSON.stringify(message));
-                    pulgram.sendMessage(message);
-                }
+                    pulgram.sendMessage(message);                }
 
                 this.initializeBoard();
                 this.updateStatus();
-            }            
-            setupMessageListener() {
+                
+                // Sync game state after making a move
+                if (this.gameStarted) {
+                    this.syncGameState();
+                }
+            }setupMessageListener() {
                 pulgram.setOnMessageReceivedListener(async (message) => {
                     console.log('Received message:', JSON.stringify(message));
-                    console.log('Message type:', JSON.parse(message.content).type);
                     console.log('Message content:', message.content);
                     if (message.type) {
                         try {
                             const data = JSON.parse(message.content);
+                            console.log('Message type:', data.type);
+                            
                             if (data.type === 'chess_invitation') {
                                 if (!this.gameStarted) {
                                     // Accept the invitation and start as black
@@ -442,20 +451,50 @@
                                 if (!this.gameStarted) {
                                     // Start as white since we sent the invitation
                                     this.startGame(true);
+                                    
+                                    // Generate a unique game ID for this session
+                                    this.gameId = this.generateGameId();
+                                    
+                                    // Send the initial game state after a short delay
+                                    setTimeout(() => {
+                                        this.syncGameState();
+                                    }, 500);
                                 }
                             } else if (data.type === 'chess_move') {
                                 if (this.gameStarted) {
                                     this.handleOpponentMove(data.move);
                                 }
+                            } else if (data.type === 'chess_sync_request') {
+                                // Respond with the current game state
+                                if (this.gameStarted) {
+                                    this.syncGameState();
+                                }
+                            } else if (data.type === 'chess_sync') {
+                                // Update the local game state with received state
+                                if (data.gameId) {
+                                    this.gameId = data.gameId;
+                                }
+                                
+                                // Only update if the sync is newer than our last update
+                                if (!this.lastSyncTime || data.timestamp > this.lastSyncTime) {
+                                    this.lastSyncTime = data.timestamp;
+                                    this.gameState = data.state;
+                                    this.gameStarted = true;
+                                    this.initializeBoard();
+                                    this.updateStatus();
+                                    
+                                    // Hide start button if game already started
+                                    document.getElementById('startButton').style.display = 'none';
+                                    this.opponentInfo.textContent = 'Game in progress';
+                                }
                             }
                         } catch (e) {
+                            console.error('Error processing message:', e);
                             // Not a game message, ignore
                         }
                     }
                 });
-            }
-
-            async startGame(isWhite) {
+            }            async startGame(isWhite) {
                 this.gameStarted = true;
                 this.isWhite = isWhite;
                 
@@ -463,6 +502,9 @@
                 document.getElementById('startButton').style.display = 'none';
                 this.opponentInfo.textContent = 'Game in progress';
                 this.updateStatus();
+                
+                // Request game state sync in case we're rejoining an existing game
+                this.requestGameStateSync();
             }
 
             acceptInvitation() {
@@ -513,6 +555,65 @@
                 const myId = pulgram.getUserId();
                 this.isWhite = myId < opponentId;
                 this.updateStatus();
+            }
+
+            handleVisibilityChange() {
+                if (document.visibilityState === 'hidden') {
+                    // Page is hidden, sync game state
+                    if (this.gameStarted) {
+                        this.syncGameState();
+                    }
+                } else {
+                    // Page is visible, check for updates
+                    this.requestGameStateSync();
+                }
+            }
+
+            generateGameId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+
+            syncGameState() {
+                // Send current game state to opponent
+                if (!this.gameStarted) return;
+                
+                const syncMessage = {
+                    type: 'chess_sync',
+                    gameId: this.gameId,
+                    state: this.gameState,
+                    timestamp: Date.now()
+                };
+
+                const message = pulgram.createMessage(
+                    JSON.stringify(syncMessage),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                
+                // Set empty strings for receiver and session IDs since they're handled by SDK
+                message.receiverId = "";
+                message.sessionId = "";
+                console.log('Sending sync:', JSON.stringify(syncMessage));
+                pulgram.sendMessage(message);
+            }
+
+            requestGameStateSync() {
+                // Request latest game state from opponent
+                const requestMessage = {
+                    type: 'chess_sync_request',
+                };
+
+                const message = pulgram.createMessage(
+                    JSON.stringify(requestMessage),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                
+                // Set empty strings for receiver and session IDs since they're handled by SDK
+                message.receiverId = "";
+                message.sessionId = "";
+                console.log('Sending sync request');
+                pulgram.sendMessage(message);
             }
         }        // Initialize the game when the SDK is ready
         document.addEventListener('pulgramready', () => {
