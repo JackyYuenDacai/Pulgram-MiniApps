@@ -130,6 +130,11 @@
                 
                 // Add event listener for page visibility changes
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+                
+                // Request sync when the game loads (this helps when re-entering the game)
+                setTimeout(() => {
+                    this.requestGameStateSync();
+                }, 500);
             }
 
             setupStartButton() {
@@ -404,7 +409,7 @@
 
                 // Update game state
                 this.gameState.board[toRow][toCol] = piece;
-                this.gameState.board[fromRow][fromCol] = '';
+                this.gameState.board[fromRow][fromCol] = '';                
                 this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';                // Send move to opponent
                 if (this.gameStarted) {
                     const moveMessage = {
@@ -433,7 +438,8 @@
                 if (this.gameStarted) {
                     this.syncGameState();
                 }
-            }setupMessageListener() {
+            }
+            setupMessageListener() {
                 pulgram.setOnMessageReceivedListener(async (message) => {
                     console.log('Received message:', JSON.stringify(message));
                     console.log('Message content:', message.content);
@@ -475,11 +481,17 @@
                                     this.gameId = data.gameId;
                                 }
                                 
-                                // Only update if the sync is newer than our last update
+                                // Only update if the sync is newer than our last update                                
                                 if (!this.lastSyncTime || data.timestamp > this.lastSyncTime) {
                                     this.lastSyncTime = data.timestamp;
                                     this.gameState = data.state;
                                     this.gameStarted = true;
+                                      // Maintain the player's color during sync
+                                    if (data.playerColor !== undefined) {
+                                        this.isWhite = data.playerColor === 'w';
+                                        console.log(`Setting player color to ${this.isWhite ? 'white' : 'black'}`);
+                                    }
+                                    
                                     this.initializeBoard();
                                     this.updateStatus();
                                     
@@ -488,13 +500,17 @@
                                     this.opponentInfo.textContent = 'Game in progress';
                                 }
                             }
+                        
                         } catch (e) {
                             console.error('Error processing message:', e);
                             // Not a game message, ignore
                         }
                     }
                 });
-            }            async startGame(isWhite) {
+            }   
+                 
+            
+            async startGame(isWhite) {
                 this.gameStarted = true;
                 this.isWhite = isWhite;
                 
@@ -538,12 +554,12 @@
                 this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
                 this.initializeBoard();
                 this.updateStatus();
-            }
-
+            }            
             updateStatus() {
                 const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
                                 (this.gameState.currentTurn === 'b' && !this.isWhite);
                 this.status.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
+                console.log(`Current turn: ${this.gameState.currentTurn}, isWhite: ${this.isWhite}, isMyTurn: ${isMyTurn}`);
             }
 
             async setOpponent(opponentId) {
@@ -567,13 +583,9 @@
                     // Page is visible, check for updates
                     this.requestGameStateSync();
                 }
-            }
-
-            generateGameId() {
+            }            generateGameId() {
                 return Date.now().toString(36) + Math.random().toString(36).substr(2);
-            }
-
-            syncGameState() {
+            }            syncGameState() {
                 // Send current game state to opponent
                 if (!this.gameStarted) return;
                 
@@ -581,7 +593,9 @@
                     type: 'chess_sync',
                     gameId: this.gameId,
                     state: this.gameState,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    playerColor: this.isWhite ? 'b' : 'w', // Send the opposite color as this will be the other player's color
+                    currentPlayerWhite: this.isWhite // Send our own color status for verification
                 };
 
                 const message = pulgram.createMessage(
