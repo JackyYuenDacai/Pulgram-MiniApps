@@ -93,6 +93,36 @@ if (!window.pulgram) {
             AndroidBridge.sendMessage(message);
         },
         
+        getWindowInsets: function(){
+            const insetsJson = AndroidBridge.getWindowInsets();
+            try {
+                return JSON.parse(insetsJson);
+            } catch (e) {
+                console.error('Error parsing window insets JSON:', e);
+                return null;
+            }
+        },
+
+        setLocalStorageItem: function(key, value) {
+            if (typeof key !== 'string' || !key) {
+                console.error('Key must be a non-empty string');
+                return;
+            }
+            if (typeof value === 'object') {
+                value = JSON.stringify(value);
+            }
+            AndroidBridge.setLocalStorageItem(key, value);
+        },
+
+        getLocalStoageItem: function(key) {
+            if (typeof key !== 'string' || !key) {
+                console.error('Key must be a non-empty string');
+                return null;
+            }
+            const value = AndroidBridge.getLocalStorageItem(key);
+            return value; // Assuming value is already a string, if it's JSON, it should be parsed by the caller
+        },
+
         getFriendDetails: async function(userId) {
             const userJson = await AndroidBridge.getFriendDetails(userId);
             return this.parseUser(userJson);
