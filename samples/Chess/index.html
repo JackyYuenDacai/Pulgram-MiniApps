@@ -160,18 +160,22 @@
                     ],
                     currentTurn: 'w'
                 };
-            }
-
-            initializeBoard() {
+            }            initializeBoard() {
                 this.board.innerHTML = '';
-                for (let row = 0; row < 8; row++) {
+                const startRow = this.isWhite ? 0 : 7;
+                const endRow = this.isWhite ? 8 : -1;
+                const rowIncrement = this.isWhite ? 1 : -1;
+                
+                for (let displayRow = 0; displayRow < 8; displayRow++) {
+                    const actualRow = this.isWhite ? displayRow : 7 - displayRow;
+                    
                     for (let col = 0; col < 8; col++) {
                         const square = document.createElement('div');
-                        square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
-                        square.dataset.row = row;
+                        square.className = `square ${(actualRow + col) % 2 === 0 ? 'white' : 'black'}`;
+                        square.dataset.row = actualRow;
                         square.dataset.col = col;
                         
-                        const piece = this.gameState.board[row][col];
+                        const piece = this.gameState.board[actualRow][col];
                         if (piece) {
                             const pieceDiv = document.createElement('div');
                             pieceDiv.className = 'piece';                            
@@ -179,7 +183,7 @@
                             square.appendChild(pieceDiv);
                         }
 
-                        square.addEventListener('click', (e) => this.handleSquareClick(row, col));
+                        square.addEventListener('click', (e) => this.handleSquareClick(actualRow, col));
                         this.board.appendChild(square);
                     }
                 }
@@ -554,12 +558,11 @@
                 this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
                 this.initializeBoard();
                 this.updateStatus();
-            }            
-            updateStatus() {
+            }              updateStatus() {
                 const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
                                 (this.gameState.currentTurn === 'b' && !this.isWhite);
                 this.status.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
-                console.log(`Current turn: ${this.gameState.currentTurn}, isWhite: ${this.isWhite}, isMyTurn: ${isMyTurn}`);
+                console.log(`Current turn: ${this.gameState.currentTurn}, isWhite: ${this.isWhite}, isMyTurn: ${isMyTurn}, board orientation: ${this.isWhite ? 'normal' : 'flipped'}`);
             }
 
             async setOpponent(opponentId) {
