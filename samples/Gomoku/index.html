@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multiplayer Gomoku</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 10px;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #board-container {
+            position: relative;
+            width: min(90vw, 90vh);
+            height: min(90vw, 90vh);
+            max-width: 500px;
+            max-height: 500px;            
+            background-image: url('resources/board.png');
+            background-size: cover;
+            pointer-events: none;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(15, 1fr);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: all;
+            z-index: 2;
+        }
+
+        .grid-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .grid-lines::before,
+        .grid-lines::after {
+            content: '';
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .horizontal-line {
+            position: absolute;
+            left: 3%;
+            width: 94%;
+            height: 1px;
+            background-color: rgba(0, 0, 0, 0.7);
+            pointer-events: none;
+        }
+
+        .vertical-line {
+            position: absolute;
+            top: 3%;
+            height: 94%;
+            width: 1px;
+            background-color: rgba(0, 0, 0, 0.7);
+            pointer-events: none;
+        }
+
+        .intersection {
+            position: absolute;            width: 30px;
+            height: 30px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 2;
+            pointer-events: all;
+        }
+
+        .intersection:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+        }
+
+        .stone {
+            width: 90%;
+            height: 90%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            position: absolute;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .stone.white {
+            background-image: url('resources/stone_white.png');
+        }
+
+        .stone.black {
+            background-image: url('resources/stone_black.png');
+        }
+
+        #status {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin: 5px 0;
+        }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #player-info {
+            font-size: 1em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        #audio-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .audio-button {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            background-color: #4a4a4a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .audio-button:hover {
+            background-color: #5a5a5a;
+        }
+
+        .audio-button.active {
+            background-color: #45a049;
+        }
+
+        .audio-button i {
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="player-info">Click Start to begin the game</div>
+        <div id="board-container">
+            <div class="grid-lines" id="gridLines"></div>
+            <div id="board"></div>
+        </div>
+        <div id="status"></div>        
+        <audio id="bgMusic" loop>
+            <source src="resources/music.mp3" type="audio/mp3">
+        </audio>
+        <audio id="moveSound">
+            <source src="resources/move.wav" type="audio/wav">
+        </audio>
+        <div id="controls">
+            <button id="startButton">Start Game</button>
+            <button id="rematchButton" style="display: none;">Rematch</button>
+        </div>
+        <div id="audio-controls">
+            <button id="musicToggle" class="audio-button">
+                <i>🎵</i> Music: Off
+            </button>
+            <button id="soundToggle" class="audio-button">
+                <i>🔊</i> Sound: Off
+            </button>
+        </div>
+    </div>
+
+    <script src="https://pulgram.com/js/pulgram-bridge.js"></script>
+    <script>
+        class GomokuGame {
+            constructor() {
+                this.board = document.getElementById('board');
+                this.status = document.getElementById('status');
+                this.playerInfo = document.getElementById('player-info');
+                this.startButton = document.getElementById('startButton');
+                this.rematchButton = document.getElementById('rematchButton');
+                this.bgMusic = document.getElementById('bgMusic');
+                this.moveSound = document.getElementById('moveSound');
+                this.gameState = this.createInitialGameState();
+                this.isBlack = true; // Black goes first
+                this.gameStarted = false;
+                this.gameId = null;
+                this.lastSyncTime = null;
+                this.isMusicEnabled = false;
+                this.isSoundEnabled = false;                this.drawGrid();
+                this.initializeBoard();
+                this.setupEventListeners();
+                this.setupMessageListener();
+                this.setupAudioControls();
+
+                // Request sync when the game loads
+                setTimeout(() => {
+                    this.requestGameStateSync();
+                }, 500);
+            }
+
+            createInitialGameState() {
+                return {
+                    board: Array(15).fill().map(() => Array(15).fill(null)),
+                    currentTurn: 'black',
+                    winner: null
+                };
+            }
+
+            drawGrid() {
+                const gridLines = document.getElementById('gridLines');
+                
+                // Create horizontal lines
+                for (let i = 0; i < 15; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'horizontal-line';
+                    line.style.top = `${(i / 14 * 94 + 3)}%`;
+                    gridLines.appendChild(line);
+                }
+
+                // Create vertical lines
+                for (let i = 0; i < 15; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'vertical-line';
+                    line.style.left = `${(i / 14 * 94 + 3)}%`;
+                    gridLines.appendChild(line);
+                }
+            }
+
+            createIntersections() {
+                this.board.innerHTML = '';
+                for (let i = 0; i < 15; i++) {
+                    for (let j = 0; j < 15; j++) {
+                        const intersection = document.createElement('div');
+                        intersection.className = 'intersection';
+                        intersection.style.left = `${(j / 14 * 94 + 3)}%`;
+                        intersection.style.top = `${(i / 14 * 94 + 3)}%`;
+                        intersection.dataset.row = i;
+                        intersection.dataset.col = j;
+                        
+                        const stone = this.gameState.board[i][j];
+                        if (stone) {
+                            const stoneDiv = document.createElement('div');
+                            stoneDiv.className = `stone ${stone}`;
+                            intersection.appendChild(stoneDiv);
+                        }
+                        
+                        this.board.appendChild(intersection);
+                    }
+                }
+            }
+
+            initializeBoard() {
+                this.createIntersections();
+            }
+
+            setupEventListeners() {
+                this.board.addEventListener('click', (e) => {
+                    const intersection = e.target.closest('.intersection');
+                    if (intersection && this.gameStarted && this.isValidMove(intersection)) {
+                        const row = parseInt(intersection.dataset.row);
+                        const col = parseInt(intersection.dataset.col);
+                        this.makeMove(row, col);
+                    }
+                });
+
+                this.startButton.addEventListener('click', () => {
+                    if (!this.gameStarted) {
+                        this.sendInvitation();
+                    }
+                });
+
+                this.rematchButton.addEventListener('click', () => {
+                    if (this.gameState.winner) {
+                        this.requestRematch();
+                    }
+                });
+
+                document.addEventListener('visibilitychange', () => {
+                    this.handleVisibilityChange();
+                });
+            }
+
+            requestRematch() {
+                const rematchRequest = {
+                    type: 'gomoku_rematch_request'
+                };
+                const message = pulgram.createMessage(
+                    JSON.stringify(rematchRequest),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                pulgram.sendMessage(message);
+                this.status.textContent = 'Waiting for opponent to accept rematch...';
+            }
+
+            acceptRematch() {
+                const response = pulgram.createMessage(
+                    JSON.stringify({ type: 'gomoku_rematch_accept' }),
+                    pulgram.MessageType.TEXT
+                );
+                pulgram.sendMessage(response);
+                this.startNewGame(!this.isBlack); // Switch colors
+            }
+
+            startNewGame(isBlack) {
+                this.gameState = this.createInitialGameState();
+                this.isBlack = isBlack;
+                this.gameStarted = true;
+                this.playerInfo.textContent = `You are playing as ${isBlack ? 'Black' : 'White'}`;
+                this.rematchButton.style.display = 'none';
+                this.initializeBoard();
+                this.updateStatus();
+                this.syncGameState();
+            }
+
+            drawGrid() {
+                const gridLines = document.getElementById('gridLines');
+                
+                // Create horizontal lines
+                for (let i = 0; i < 15; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'horizontal-line';
+                    line.style.top = `${(i / 14 * 94 + 3)}%`;
+                    gridLines.appendChild(line);
+                }
+
+                // Create vertical lines
+                for (let i = 0; i < 15; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'vertical-line';
+                    line.style.left = `${(i / 14 * 94 + 3)}%`;
+                    gridLines.appendChild(line);
+                }
+            }
+
+            createIntersections() {
+                this.board.innerHTML = '';
+                for (let i = 0; i < 15; i++) {
+                    for (let j = 0; j < 15; j++) {
+                        const intersection = document.createElement('div');
+                        intersection.className = 'intersection';
+                        intersection.style.left = `${(j / 14 * 94 + 3)}%`;
+                        intersection.style.top = `${(i / 14 * 94 + 3)}%`;
+                        intersection.dataset.row = i;
+                        intersection.dataset.col = j;
+                        
+                        const stone = this.gameState.board[i][j];
+                        if (stone) {
+                            const stoneDiv = document.createElement('div');
+                            stoneDiv.className = `stone ${stone}`;
+                            intersection.appendChild(stoneDiv);
+                        }
+                        
+                        this.board.appendChild(intersection);
+                    }
+                }
+            }
+
+            initializeBoard() {
+                this.createIntersections();
+            }
+
+            setupEventListeners() {
+                this.board.addEventListener('click', (e) => {
+                    const intersection = e.target.closest('.intersection');
+                    if (intersection && this.gameStarted && this.isValidMove(intersection)) {
+                        const row = parseInt(intersection.dataset.row);
+                        const col = parseInt(intersection.dataset.col);
+                        this.makeMove(row, col);
+                    }
+                });
+
+                this.startButton.addEventListener('click', () => {
+                    if (!this.gameStarted) {
+                        this.sendInvitation();
+                    }
+                });
+
+                this.rematchButton.addEventListener('click', () => {
+                    if (this.gameState.winner) {
+                        this.requestRematch();
+                    }
+                });
+
+                document.addEventListener('visibilitychange', () => {
+                    this.handleVisibilityChange();
+                });
+            }
+
+            isValidMove(cell) {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                const isMyTurn = (this.gameState.currentTurn === 'black' && this.isBlack) ||
+                                (this.gameState.currentTurn === 'white' && !this.isBlack);
+                
+                return isMyTurn && !this.gameState.board[row][col] && !this.gameState.winner;
+            }
+
+            makeMove(row, col) {
+                const currentColor = this.gameState.currentTurn;
+                this.gameState.board[row][col] = currentColor;
+                this.gameState.currentTurn = currentColor === 'black' ? 'white' : 'black';
+
+                // Play move sound if enabled
+                if (this.isSoundEnabled) {
+                    this.moveSound.currentTime = 0;
+                    this.moveSound.play();
+                }
+
+                if (this.checkWin(row, col, currentColor)) {
+                    this.gameState.winner = currentColor;
+                }
+
+                this.initializeBoard();
+                this.updateStatus();
+
+                // Send move to opponent
+                const moveMessage = {
+                    type: 'gomoku_move',
+                    move: { row, col, color: currentColor }
+                };
+
+                const message = pulgram.createMessage(
+                    JSON.stringify(moveMessage),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                pulgram.sendMessage(message);
+
+                // Sync game state
+                this.syncGameState();
+            }
+
+            checkWin(row, col, color) {
+                const directions = [
+                    [1, 0],   // vertical
+                    [0, 1],   // horizontal
+                    [1, 1],   // diagonal \
+                    [1, -1]   // diagonal /
+                ];
+
+                return directions.some(([dx, dy]) => {
+                    let count = 1;
+                    
+                    // Check in positive direction
+                    for (let i = 1; i < 5; i++) {
+                        const newRow = row + (dx * i);
+                        const newCol = col + (dy * i);
+                        if (!this.isValidPosition(newRow, newCol) || 
+                            this.gameState.board[newRow][newCol] !== color) break;
+                        count++;
+                    }
+                    
+                    // Check in negative direction
+                    for (let i = 1; i < 5; i++) {
+                        const newRow = row - (dx * i);
+                        const newCol = col - (dy * i);
+                        if (!this.isValidPosition(newRow, newCol) || 
+                            this.gameState.board[newRow][newCol] !== color) break;
+                        count++;
+                    }
+
+                    return count >= 5;
+                });
+            }
+
+            isValidPosition(row, col) {
+                return row >= 0 && row < 15 && col >= 0 && col < 15;
+            }
+
+            setupMessageListener() {
+                pulgram.setOnMessageReceivedListener(async (message) => {
+                    try {
+                        const data = JSON.parse(message.content);
+                        
+                        switch (data.type) {
+                            case 'gomoku_invitation':
+                                if (!this.gameStarted) {
+                                    this.acceptInvitation();
+                                }
+                                break;
+
+                            case 'gomoku_accept':
+                                if (!this.gameStarted) {
+                                    this.startGame(true);
+                                    this.gameId = this.generateGameId();
+                                    setTimeout(() => this.syncGameState(), 500);
+                                }
+                                break;
+
+                            case 'gomoku_move':
+                                if (this.gameStarted) {
+                                    this.handleOpponentMove(data.move);
+                                }
+                                break;
+
+                            case 'gomoku_sync_request':
+                                if (this.gameStarted) {
+                                    this.syncGameState();
+                                }
+                                break;
+
+                case 'gomoku_sync':
+                                if (!this.lastSyncTime || data.timestamp > this.lastSyncTime) {
+                                    if (data.state && data.state.board) {  // Validate state before applying
+                                        this.lastSyncTime = data.timestamp;
+                                        this.gameState = data.state;
+                                        this.gameStarted = true;
+                                        if (data.playerColor !== undefined) {
+                                            this.isBlack = data.playerColor === 'black';
+                                        }
+                                        this.initializeBoard();
+                                        this.updateStatus();
+                                        this.startButton.style.display = 'none';
+                                    }
+                                }
+                                break;
+
+                            case 'gomoku_resign':
+                                if (this.gameStarted) {
+                                    this.handleResignation(data.player);
+                                }
+                                break;
+
+                            case 'gomoku_rematch_request':
+                                if (this.gameState.winner) {
+                                    this.acceptRematch();
+                                }
+                                break;
+
+                            case 'gomoku_rematch_accept':
+                                if (this.gameState.winner) {
+                                    this.startNewGame(!this.isBlack); // Switch colors
+                                }
+                                break;
+                        }
+                    } catch (e) {
+                        console.error('Error processing message:', e);
+                    }
+                });
+            }
+
+            startGame(isBlack) {
+                this.gameStarted = true;
+                this.isBlack = isBlack;                this.startButton.style.display = 'none';
+                this.playerInfo.textContent = `You are playing as ${isBlack ? 'Black' : 'White'}`;
+                this.updateStatus();
+                this.requestGameStateSync();
+            }
+
+            acceptInvitation() {
+                const response = pulgram.createMessage(
+                    JSON.stringify({ type: 'gomoku_accept' }),
+                    pulgram.MessageType.TEXT
+                );
+                pulgram.sendMessage(response);
+                this.startGame(false);
+            }
+
+            sendInvitation() {
+                const invitation = pulgram.createMessage(
+                    JSON.stringify({ type: 'gomoku_invitation' }),
+                    pulgram.MessageType.TEXT
+                );
+                pulgram.sendMessage(invitation);
+                this.playerInfo.textContent = 'Waiting for opponent to accept...';
+            }
+
+            handleOpponentMove(moveData) {
+                const { row, col, color } = moveData;
+                this.gameState.board[row][col] = color;
+                this.gameState.currentTurn = color === 'black' ? 'white' : 'black';
+                
+                if (this.checkWin(row, col, color)) {
+                    this.gameState.winner = color;
+                }
+                
+                this.initializeBoard();
+                this.updateStatus();
+            }
+
+            updateStatus() {                
+                if (this.gameState.winner) {
+                    this.status.textContent = `${this.gameState.winner.toUpperCase()} wins!`;
+                    this.rematchButton.style.display = 'block';
+                } else {
+                    const isMyTurn = (this.gameState.currentTurn === 'black' && this.isBlack) ||
+                                   (this.gameState.currentTurn === 'white' && !this.isBlack);
+                    this.status.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
+                }
+            }
+
+            handleVisibilityChange() {
+                if (document.visibilityState === 'visible') {
+                    this.requestGameStateSync();
+                } else if (this.gameStarted) {
+                    this.syncGameState();
+                }
+            }
+
+            generateGameId() {
+                return Date.now().toString(36) + Math.random().toString(36).substr(2);
+            }
+
+            syncGameState() {
+                if (!this.gameStarted) return;
+                
+                const syncMessage = {
+                    type: 'gomoku_sync',
+                    gameId: this.gameId,
+                    state: this.gameState,
+                    timestamp: Date.now(),
+                    playerColor: this.isBlack ? 'white' : 'black'
+                };
+
+                const message = pulgram.createMessage(
+                    JSON.stringify(syncMessage),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                pulgram.sendMessage(message);
+            }
+
+            requestGameStateSync() {
+                const requestMessage = {
+                    type: 'gomoku_sync_request'
+                };
+
+                const message = pulgram.createMessage(
+                    JSON.stringify(requestMessage),
+                    pulgram.MessageType.TEXT,
+                    pulgram.ReceiverType.USER
+                );
+                pulgram.sendMessage(message);
+            }
+
+            setupAudioControls() {
+                const musicToggle = document.getElementById('musicToggle');
+                const soundToggle = document.getElementById('soundToggle');
+
+                musicToggle.addEventListener('click', () => {
+                    this.isMusicEnabled = !this.isMusicEnabled;
+                    if (this.isMusicEnabled) {
+                        this.bgMusic.play();
+                        musicToggle.classList.add('active');
+                        musicToggle.innerHTML = '<i>🎵</i> Music: On';
+                    } else {
+                        this.bgMusic.pause();
+                        musicToggle.classList.remove('active');
+                        musicToggle.innerHTML = '<i>🎵</i> Music: Off';
+                    }
+                });
+
+                soundToggle.addEventListener('click', () => {
+                    this.isSoundEnabled = !this.isSoundEnabled;
+                    soundToggle.classList.toggle('active');
+                    soundToggle.innerHTML = this.isSoundEnabled ? 
+                        '<i>🔊</i> Sound: On' : 
+                        '<i>🔊</i> Sound: Off';
+                });
+            }
+        }
+
+        document.addEventListener('pulgramready', () => {
+            window.game = new GomokuGame();
+        });
+    </script>
+</body>
+</html>
