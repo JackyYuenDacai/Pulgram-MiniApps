@@ -338,21 +338,14 @@
                 const rematchRequest = {
                     type: 'gomoku_rematch_request'
                 };
-                const message = pulgram.createMessage(
-                    JSON.stringify(rematchRequest),
-                    pulgram.MessageType.TEXT,
-                    pulgram.ReceiverType.USER
-                );
-                pulgram.sendMessage(message);
+ 
+                pulgram.sendMessage(JSON.stringify(rematchRequest));
                 this.status.textContent = 'Waiting for opponent to accept rematch...';
             }
 
             acceptRematch() {
-                const response = pulgram.createMessage(
-                    JSON.stringify({ type: 'gomoku_rematch_accept' }),
-                    pulgram.MessageType.TEXT
-                );
-                pulgram.sendMessage(response);
+ 
+                pulgram.sendMessage(JSON.stringify({ type: 'gomoku_rematch_accept' }));
                 this.startNewGame(!this.isBlack); // Switch colors
             }
 
@@ -473,13 +466,8 @@
                     type: 'gomoku_move',
                     move: { row, col, color: currentColor }
                 };
-
-                const message = pulgram.createMessage(
-                    JSON.stringify(moveMessage),
-                    pulgram.MessageType.TEXT,
-                    pulgram.ReceiverType.USER
-                );
-                pulgram.sendMessage(message);
+ 
+                pulgram.sendMessage(JSON.stringify(moveMessage));
 
                 // Sync game state
                 this.syncGameState();
@@ -608,7 +596,7 @@
                     JSON.stringify({ type: 'gomoku_accept' }),
                     pulgram.MessageType.TEXT
                 );
-                pulgram.sendMessage(response);
+                pulgram.sendMessage(JSON.stringify({ type: 'gomoku_accept' }));
                 this.startGame(false);
             }
 
@@ -617,7 +605,7 @@
                     JSON.stringify({ type: 'gomoku_invitation' }),
                     pulgram.MessageType.TEXT
                 );
-                pulgram.sendMessage(invitation);
+                pulgram.sendMessage(JSON.stringify({ type: 'gomoku_invitation' }));
                 this.playerInfo.textContent = 'Waiting for opponent to accept...';
             }
 
@@ -668,12 +656,8 @@
                     playerColor: this.isBlack ? 'white' : 'black'
                 };
 
-                const message = pulgram.createMessage(
-                    JSON.stringify(syncMessage),
-                    pulgram.MessageType.TEXT,
-                    pulgram.ReceiverType.USER
-                );
-                pulgram.sendMessage(message);
+    
+                pulgram.sendMessage(JSON.stringify(syncMessage));
             }
 
             requestGameStateSync() {

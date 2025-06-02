@@ -425,15 +425,9 @@
                         }
                     };
 
-                    const message = pulgram.createMessage(
-                        JSON.stringify(moveMessage),
-                        pulgram.MessageType.TEXT,
-                        pulgram.ReceiverType.USER
-                    );                    // Set empty strings for receiver and session IDs since they're handled by SDK
-                    message.receiverId = "";
-                    message.sessionId = "";
-                    console.log('Sending:', JSON.stringify(message));
-                    pulgram.sendMessage(message);                }
+           
+                    pulgram.sendMessage(JSON.stringify(moveMessage));                
+                }
 
                 this.initializeBoard();
                 this.updateStatus();
@@ -533,7 +527,7 @@
                     JSON.stringify({ type: 'chess_accept' }),
                     pulgram.MessageType.TEXT
                 );
-                pulgram.sendMessage(response);
+                pulgram.sendMessage(JSON.stringify({ type: 'chess_accept' }));
                 
                 // Start game as black
                 this.startGame(false);
@@ -546,7 +540,7 @@
                         pulgram.MessageType.TEXT
                     );
                     console.log('Sending:', JSON.stringify(invitation));
-                    pulgram.sendMessage(invitation);
+                    pulgram.sendMessage(JSON.stringify({ type: 'chess_invitation' }));
                     this.opponentInfo.textContent = 'Waiting for opponent to accept...';
                 }
             }
@@ -558,7 +552,8 @@
                 this.gameState.currentTurn = this.gameState.currentTurn === 'w' ? 'b' : 'w';
                 this.initializeBoard();
                 this.updateStatus();
-            }              updateStatus() {
+            }              
+            updateStatus() {
                 const isMyTurn = (this.gameState.currentTurn === 'w' && this.isWhite) ||
                                 (this.gameState.currentTurn === 'b' && !this.isWhite);
                 this.status.textContent = isMyTurn ? 'Your turn' : "Opponent's turn";
@@ -600,18 +595,9 @@
                     playerColor: this.isWhite ? 'b' : 'w', // Send the opposite color as this will be the other player's color
                     currentPlayerWhite: this.isWhite // Send our own color status for verification
                 };
-
-                const message = pulgram.createMessage(
-                    JSON.stringify(syncMessage),
-                    pulgram.MessageType.TEXT,
-                    pulgram.ReceiverType.USER
-                );
-                
-                // Set empty strings for receiver and session IDs since they're handled by SDK
-                message.receiverId = "";
-                message.sessionId = "";
+ 
                 console.log('Sending sync:', JSON.stringify(syncMessage));
-                pulgram.sendMessage(message);
+                pulgram.sendMessage(JSON.stringify(syncMessage));
             }
 
             requestGameStateSync() {
@@ -630,7 +616,7 @@
                 message.receiverId = "";
                 message.sessionId = "";
                 console.log('Sending sync request');
-                pulgram.sendMessage(message);
+                pulgram.sendMessage(JSON.stringify(requestMessage));
             }
         }        // Initialize the game when the SDK is ready
         document.addEventListener('pulgramready', () => {
