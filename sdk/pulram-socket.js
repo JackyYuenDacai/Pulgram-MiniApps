@@ -6,6 +6,7 @@
  * 2. Clients can only send to and receive from the host
  * 3. Providing emit/on interface similar to sockets
  */
+const pulgram = window.pulgram
 class PulgramSocket {
     constructor(namespace = 'default', initialHandlers = {}) {
         this.namespace = namespace;
@@ -36,7 +37,7 @@ class PulgramSocket {
      * @param {any} data - Data to send
      * @param {string} targetId - Optional specific target (host use only)
      */
-    emit(event, data, targetId = null) {
+    async emit(event, data, targetId = null) {
         // System events are always allowed
         const isSystemEvent = event.startsWith('_');
         
@@ -65,13 +66,10 @@ class PulgramSocket {
             timestamp: Date.now()
         };
 
-        const pulgramMessage = pulgram.createMessage(
-            JSON.stringify(message),
-        );
-        
+ 
         // Send via Pulgram
         
-        pulgram.sendMessage(pulgramMessage);
+        pulgram.sendMessage(JSON.stringify(message));
         // Process immediately on host for system events or when targeting self
         if (isSystemEvent || this.isHost) {
             console.log(`Processing system event immediately: ${event}`, data);
@@ -90,7 +88,20 @@ class PulgramSocket {
             return;
         }
         
-        this.emit(event, data);
+        const message = {
+            type: 'socket',
+            namespace: this.namespace,
+            event: event,
+            data: data,
+            from: pulgram.getUserId(),
+            to: null,
+            timestamp: Date.now()
+        };
+
+ 
+        // Send via Pulgram
+        
+        pulgram.sendMessage(JSON.stringify(message));
     }
 
     /**
@@ -171,13 +182,13 @@ class PulgramSocket {
      * @private
      */
     _setupMessageListener() {
-        pulgram.setOnMessageReceivedListener((message) => {
-            if (message.type !== pulgram.MessageType.APP_DATA) return;
+        pulgram.setOnMessageReceivedListener(async  (message) => {
 
             try {
                 const socketMessage = JSON.parse(message.content);
                 if (socketMessage.type === 'socket' && 
                     socketMessage.namespace === this.namespace) {
+                    console.log(`Received socket message: ${socketMessage.event}`, socketMessage.data);
                     this._handleSocketMessage(socketMessage);
                 }
             } catch (e) {
@@ -350,10 +361,7 @@ class PulgramSocket {
                     previousHostId: this.hostId !== message.data.hostId ? this.hostId : null
                 });
                 
-                // Process any queued messages now that we have a host
-                if (!this.isHost) {
-                    this._processMessageQueue();
-                }
+ 
                 
                 return;
             } else if (message.event === '_ping') {
@@ -369,6 +377,7 @@ class PulgramSocket {
             } else if (message.event === '_request_host') {
                 // If I'm the host, respond to host requests
                 if (this.isHost) {
+                    console.log(`Responding to host request from ${message.from}`);
                     this.emit('_host_info', { 
                         hostId: this.hostId,
                         participants: Array.from(this.participants.keys())
